@@ -1,0 +1,13 @@
+# General
+title: Python Course Pandas Extension
+description: Additional exercises for the intro to Python course
+baseurl: "/Python-Course-Pandas-Extension"
+
+# Build settings
+theme: jekyll-theme-minimal
+markdown: kramdown
+
+# Permalinks
+# lessons/lesson1.md will have the URL /lessons/lesson1/
+# removes need for .html extensions.
+permalink: /:categories/:title/
