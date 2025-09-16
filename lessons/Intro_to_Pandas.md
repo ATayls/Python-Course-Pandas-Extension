@@ -1,4 +1,7 @@
-\--- layout: lessons title: Pandas Bridge: From NumPy/Matplotlib to Tabular Analysis ---
+---
+layout: lessons
+lessons title: Intro to pandas
+---
 
 ## Lesson Aims
 
