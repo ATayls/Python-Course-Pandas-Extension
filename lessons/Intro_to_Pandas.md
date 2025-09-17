@@ -324,3 +324,118 @@ def week1_status(row: pd.Series) -> str:
 
 df["week1_status"] = df.apply(week1_status, axis=1)
 ```
+
+---
+
+## Putting It Together: Combine → Tidy → Summarise → Export
+
+This mini-workflow reads all `inflammation-*.csv` files, adds clear labels, reshapes to a tidy table, summarizes, and writes results to disk.
+
+```python
+from pathlib import Path
+import pandas as pd
+
+# 1) Load and label many files
+def load_one(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path, header=None)
+    df.columns = [f"day_{i}" for i in range(df.shape[1])]
+    df = df.reset_index(names="patient")          # patient id 0..N-1
+    return df.assign(source=path.name)            # keep file/source label
+
+files = sorted(Path("data").glob("inflammation-*.csv"))
+wide = pd.concat([load_one(p) for p in files], ignore_index=True)
+
+# 2) Reshape to tidy (long) format: one value per row
+tidy = wide.melt(
+    id_vars=["source", "patient"],
+    var_name="day",
+    value_name="inflammation",
+)
+
+# 3) Handle missing/odd values explicitly (adjust to your context)
+# Example policies:
+#   - no negatives allowed
+#   - replace sentinel -999 with NA (if present in your data)
+tidy = tidy.replace(-999, pd.NA)
+tidy["inflammation"] = tidy["inflammation"].clip(lower=0)
+
+# Optional quick QA checks
+missing_rate_by_file = (
+    tidy["inflammation"].isna()
+    .groupby(tidy["source"])
+    .mean()
+    .round(3)
+)
+print("Missing rate by file:\n", missing_rate_by_file)
+
+# 4) Summarise with groupby/agg (mean, sd, count) per file × day
+summary = (
+    tidy
+    .groupby(["source", "day"], as_index=False)
+    .agg(
+        mean=("inflammation", "mean"),
+        sd=("inflammation", "std"),
+        n=("inflammation", "size"),
+    )
+)
+
+# 5) Export clean results
+Path("out").mkdir(exist_ok=True)
+summary.to_csv("out/per_day_summary.csv", index=False)
+print("Wrote out/per_day_summary.csv")
+```
+
+### Why this pattern?
+
+* `reset_index(names="patient")` gives you a stable patient identifier before melting.
+* Keeping `source` (the filename) preserves provenance, so summaries can be compared across files.
+* Tidy data (`melt`) makes `groupby`/`agg` straightforward and composable.
+
+---
+
+## (Optional) Tiny CLI Wrapper
+
+If you’d like to run the workflow from the shell without touching a notebook, save the below as `scripts/summarise_inflammation.py`:
+
+```python
+#!/usr/bin/env python3
+from pathlib import Path
+import argparse
+import pandas as pd
+
+def load_one(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path, header=None)
+    df.columns = [f"day_{i}" for i in range(df.shape[1])]
+    df = df.reset_index(names="patient")
+    return df.assign(source=path.name)
+
+def main(pattern: str, out_csv: str):
+    files = sorted(Path().glob(pattern))
+    if not files:
+        raise SystemExit(f"No files matched {pattern!r}")
+    wide = pd.concat([load_one(p) for p in files], ignore_index=True)
+    tidy = wide.melt(id_vars=["source", "patient"], var_name="day", value_name="inflammation")
+    tidy = tidy.replace(-999, pd.NA)
+    tidy["inflammation"] = tidy["inflammation"].clip(lower=0)
+    summary = (tidy.groupby(["source", "day"], as_index=False)
+                    .agg(mean=("inflammation","mean"),
+                         sd=("inflammation","std"),
+                         n=("inflammation","size")))
+    Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(out_csv, index=False)
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("pattern", help="Glob like 'data/inflammation-*.csv'")
+    ap.add_argument("--out", default="out/per_day_summary.csv")
+    args = ap.parse_args()
+    main(args.pattern, args.out)
+```
+
+Run:
+
+```bash
+python scripts/summarise_inflammation.py "data/inflammation-*.csv" --out out/per_day_summary.csv
+```
+
+---
