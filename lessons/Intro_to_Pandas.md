@@ -32,7 +32,7 @@ We’ll load one inflammation CSV and give columns meaningful names.
 ```python
 import pandas as pd
 
-df = pd.read_csv("data/inflammation-01.csv", header=None)
+df = pd.read_csv("inflammation-01.csv", header=None)
 df.columns = [f"day_{i}" for i in range(df.shape[1])]  # name columns day_0..day_59
 df.head()
 ```
@@ -426,7 +426,7 @@ def main(pattern: str, out_csv: str):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("pattern", help="Glob like 'data/inflammation-*.csv'")
+    ap.add_argument("pattern", help="Glob like 'inflammation-*.csv'")
     ap.add_argument("--out", default="out/per_day_summary.csv")
     args = ap.parse_args()
     main(args.pattern, args.out)
@@ -435,7 +435,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-python scripts/summarise_inflammation.py "data/inflammation-*.csv" --out out/per_day_summary.csv
+python scripts/summarise_inflammation.py "inflammation-*.csv" --out out/per_day_summary.csv
 ```
 
 ---
