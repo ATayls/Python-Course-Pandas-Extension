@@ -1,7 +1,8 @@
 ---
+
 layout: lessons
 lessons title: Intro to pandas
----
+------------------------------
 
 ## Lesson Aims
 
@@ -103,6 +104,24 @@ Extract the readings for **patient 10** on **days 10–19** inclusive using `.il
 df.iloc[10, 10:20]
 df.loc[10, [f"day_{i}" for i in range(10, 20)]]
 ```
+
+---
+
+## Defining a DataFrame (brief)
+
+A pandas `DataFrame` is defined by **data**, **row labels (index)**, and **column labels**. You can construct one from Python objects directly:
+
+```python
+basic = pd.DataFrame(
+    {"a": [1, 2], "b": [3.0, 4.5]},   # columns
+    index=["row1", "row2"]            # optional row labels
+)
+basic.dtypes      # per-column data types
+basic.index       # row labels
+basic.columns     # column labels
+```
+
+Clear labels and appropriate dtypes make later selection, grouping, and plotting safer and more readable.
 
 ---
 
@@ -220,7 +239,15 @@ for ax in axes:
 
 ## Cleaning & Validation
 
-Detect missing or suspicious values, then handle them explicitly. Bridge to defensive programming with assertions.
+Conditionals applied to columns.
+
+We can use conditionals to evaluate data quality.
+
+```python
+(long["inflammation"] < 0)
+```
+
+Detect missing or suspicious values, then handle them explicitly. Bridge to defensive programming with simple checks.
 
 ```python
 # Missingness overview
@@ -228,8 +255,9 @@ long.isna().sum()
 ```
 
 ```python
-# Domain-specific sanity checks (example thresholds)
-suspicious = long.query("inflammation < 0 or inflammation > 100")
+# Domain-specific sanity checks (example thresholds) — without .query
+suspicious_mask = (long["inflammation"] < 0) | (long["inflammation"] > 100)
+suspicious = long.loc[suspicious_mask]
 suspicious.head()
 ```
 
@@ -240,9 +268,9 @@ clean = long.dropna(subset=["inflammation"])
 ```
 
 ```python
-# Invariants
-assert clean["inflammation"].ge(0).all(), "Negative readings remain"
-assert clean["day"].between(0, 59).all(), "Day out of expected range"
+# Simple integrity checks (no asserts)
+clean["inflammation"].lt(0).any()     # expect False
+clean["day"].between(0, 59).all()     # expect True
 ```
 
 ### Quick Tips
@@ -338,8 +366,7 @@ summary.to_csv("results/per_day_summary.csv", index=False)
 ```
 
 ```python
-# analyse.py
-import argparse, pandas as pd, glob, sys
+import glob
 
 def load_summary(paths, stat="mean"):
     frames = []
@@ -356,17 +383,10 @@ def load_summary(paths, stat="mean"):
     agg_map = {"mean":"mean","min":"min","max":"max"}[stat]
     return (long.groupby("day")["inflammation"].agg(agg_map).reset_index(name=stat))
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Summarise inflammation CSVs")
-    ap.add_argument("pattern", help="Glob like data/inflammation-*.csv")
-    ap.add_argument("-o","--out", default="summary.csv")
-    ap.add_argument("--stat", choices=["mean","min","max"], default="mean")
-    args = ap.parse_args()
-    paths = sorted(glob.glob(args.pattern))
-    if not paths:
-        sys.exit("No files matched.")
-    out = load_summary(paths, stat=args.stat)
-    out.to_csv(args.out, index=False)
+
+
+paths = sorted(glob.glob("inflammation-*.csv"))
+summary = load_summary(paths, stat="mean")
 ```
 
 ### Quick Tips
@@ -407,25 +427,8 @@ median_vs_mean = pd.DataFrame({
 median_vs_mean.head()
 ```
 
-#### Exercise 9: Mean ± SEM
 
-Combine all files, tidy them, and compute per-day **standard error of the mean** (`sem = std / sqrt(n)`). Plot mean ± SEM.
-
-**Solution:**
-
-```python
-import numpy as np
-
-sem = (long.groupby("day")["inflammation"]
-           .agg(mean="mean", std="std", n="count")
-           .assign(sem=lambda d: d["std"] / np.sqrt(d["n"])))
-ax = sem["mean"].plot(title="Mean ± SEM by day")
-(sem["mean"] + sem["sem"]).plot(ax=ax)
-(sem["mean"] - sem["sem"]).plot(ax=ax)
-ax.set_xlabel("day"); ax.set_ylabel("inflammation")
-```
-
-#### Exercise 10: Outlier Files
+#### Exercise 9: Outlier Files
 
 Identify any file with ≥1 day where `file_mean(day) > global_mean(day) + 3*global_std(day)`. List file and day.
 
@@ -441,7 +444,8 @@ file_day = (long.groupby(["file","day"])["inflammation"]
                  .reset_index(name="fmean"))
 
 merged = file_day.merge(global_stats, on="day", how="left")
-outliers = merged.query("fmean > gmean + 3*gstd")[["file","day","fmean"]]
+mask = merged["fmean"] > (merged["gmean"] + 3 * merged["gstd"])
+outliers = merged.loc[mask, ["file","day","fmean"]]
 outliers.sort_values(["file","day"])
 ```
 
@@ -453,7 +457,7 @@ outliers.sort_values(["file","day"])
 * Use `.loc`/`.iloc` for clarity; **never rely on chained indexing** when assigning.
 * Pandas mirrors many NumPy reductions (`mean`, `std`, …) and offers convenient plotting.
 * To combine many files: `concat`, then `melt` to get **tidy** data; analyse with `groupby`/`agg`.
-* Validate assumptions early with `info()`, `describe()`, and simple **assertions**; handle missing data intentionally.
+* Validate assumptions early with `info()`, `describe()`, and simple checks; handle missing data intentionally.
 * Export results with `to_csv`; optional: wrap workflows in small, testable CLIs with `argparse`.
 
 #### Lesson Inspired by Software Carpentries’ *python-novice-inflammation* and adapted for a pandas-focused bridge.
