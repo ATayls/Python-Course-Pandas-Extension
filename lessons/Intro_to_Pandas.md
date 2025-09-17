@@ -1,6 +1,6 @@
 ---
 layout: lessons
-lessons title: Intro to pandas
+title: Intro to Pandas
 ---
 
 ## Lesson Aims
