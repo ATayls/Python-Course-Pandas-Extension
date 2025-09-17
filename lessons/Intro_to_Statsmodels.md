@@ -17,13 +17,13 @@ title: Intro to StatsModels
 
 Use `statsmodels` when you need **interpretability**, **inference**, and **statistical diagnostics** beyond what scikit-learn typically exposes.
 
-Link to docs: https://www.statsmodels.org/stable/index.html
+Link to docs: [Docs](https://www.statsmodels.org/stable/index.html)
 
 Worked Example in docs:
 
-https://www.statsmodels.org/stable/examples/index.html#regression-examples
+[Regression Examples](https://www.statsmodels.org/stable/examples/index.html#regression-examples)
 
-https://www.statsmodels.org/0.6.1/examples/notebooks/generated/interactions_anova.html
+[Interaction Examples](https://www.statsmodels.org/0.6.1/examples/notebooks/generated/interactions_anova.html)
 
 
 ## Prerequisites & Setup
