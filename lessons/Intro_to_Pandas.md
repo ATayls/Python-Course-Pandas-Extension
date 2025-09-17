@@ -17,7 +17,7 @@ lessons title: Intro to pandas
 
 Pandas is a library that provides the `DataFrame`: a labeled, table-like data structure that makes tabular analysis expressive and robust. If NumPy gives you fast arrays, pandas layers labels, missing-data handling, and rich reshaping and grouping operations on top—ideal for day-to-day data analysis.
 
-## Prerequisites & Setup
+Please have a look at the [pandas documentation](https://pandas.pydata.org/docs/getting_started/overview.html) for more details.
 
 * Assumes prior comfort with: Python basics, NumPy arrays, Matplotlib plotting, loops, simple functions, and reading multiple files.
 * Data: `inflammation-*.csv` (each file is patients × days).
