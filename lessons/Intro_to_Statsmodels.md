@@ -1,5 +1,7 @@
---- layout: lessons
+---
+layout: lessons
 title: Intro to StatsModels
+---
 
 ## Lesson Aims
 
@@ -16,6 +18,13 @@ title: Intro to StatsModels
 Use `statsmodels` when you need **interpretability**, **inference**, and **statistical diagnostics** beyond what scikit-learn typically exposes.
 
 Link to docs: https://www.statsmodels.org/stable/index.html
+
+Worked Example in docs:
+
+https://www.statsmodels.org/stable/examples/index.html#regression-examples
+
+https://www.statsmodels.org/0.6.1/examples/notebooks/generated/interactions_anova.html
+
 
 ## Prerequisites & Setup
 
@@ -60,7 +69,13 @@ print(model.summary())
 
 ### Quick Tips
 
-* Formulas: `y ~ x1 + x2` (additive), `x1:x2` (interaction), `C(cat)` (treat a column as categorical), `I(x**2)` (literal transform).
+* Formulas: `y ~ x1 + x2` (additive), `x1:x2` (interaction), `C(cat)` (treat a column as categorical),
+
+* y ~ x1 + x2 → main effects only
+* y ~ x1 * x2 → includes x1, x2, and their interaction (x1:x2)
+* y ~ x1:x2 → interaction only, no main effects
+* y ~ x1 + x2 + x1:x2 → explicit version of x1 * x2
+
 * `ols(...).fit()` returns a results object (`.params`, `.bse`, `.pvalues`, `.conf_int()`).
 * Use **clean column names** (snake\_case, no spaces) to avoid quoting hassles in formulas.
 
@@ -165,20 +180,6 @@ print(glm_logit.summary())
 
 * Common families: `Binomial` (logit/probit), `Poisson`, `Gamma` (with appropriate links).
 
-### Time Series (ARIMA)
-
-```python
-from statsmodels.tsa.arima.model import ARIMA
-
-# y is a pandas Series indexed by time
-arima = ARIMA(y, order=(1,1,1)).fit()
-print(arima.summary())
-```
-
-* Explore `tsa.statespace` for SARIMAX, ETS, and structural time series.
-
----
-
 ## Practical Mini-Exercises
 
 ### Exercise 1 — Add an Interaction
@@ -191,6 +192,8 @@ Fit `mpg ~ hp * wt` (which expands to `hp + wt + hp:wt`). Does the interaction a
 m_int = smf.ols("mpg ~ hp * wt", data=data).fit()
 print(m_int.summary().tables[1])  # coefficient table only
 ```
+
+Explanation: The hp:wt row tests whether the effect of horsepower on mpg depends on weight. A small p-value (e.g., < 0.05) suggests meaningfully different slopes across weights; otherwise, prefer the simpler additive model.
 
 ---
 
@@ -206,6 +209,8 @@ m_cat = smf.ols("mpg ~ hp + C(heavy)", data=data).fit()
 print(m_cat.summary().tables[1])
 ```
 
+Explanation: C(heavy)[T.True] is the average difference in mpg between heavy and light cars at the same horsepower. A negative, significant coefficient indicates heavier cars get fewer mpg, controlling for hp.
+
 ---
 
 ### Exercise 3 — Prediction Table
@@ -220,6 +225,8 @@ pred = model.get_prediction(grid).summary_frame()
 pred.to_csv("pred_grid.csv", index=False)
 pred
 ```
+
+Explanation: The table includes fitted means and intervals. Mean CI reflects uncertainty in the expected mpg at those settings; obs CI is wider, reflecting variability for a single new car.
 
 ---
 
