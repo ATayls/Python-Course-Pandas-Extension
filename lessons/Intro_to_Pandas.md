@@ -310,9 +310,9 @@ Row-wise `apply` is clear when logic mixes multiple columns in nontrivial ways, 
 ### Quick Tips
 
 * If your function is elementwise (e.g., square, clip, log), try `Series.map`, `Series.apply` (elementwise), or direct operators before `DataFrame.apply(axis=1)`.
-* Keep UDFs pure (no side effects) and small; they’re easier to test and reason about.
+* Keep User Define Functions pure (no side effects) and small; they’re easier to test and reason about.
 
-### Exercise 6 (UDF)
+### Exercise 6 (User Defined Function)
 
 Write a function `week1_status(row)` that returns `"ok"` if the **mean** of week 1 is `< 5`, else `"review"`. Add it as a column.
 
@@ -329,7 +329,7 @@ df["week1_status"] = df.apply(week1_status, axis=1)
 
 ## Putting It Together: Combine → Tidy → Summarise → Export
 
-This mini-workflow reads all `inflammation-*.csv` files, adds clear labels, reshapes to a tidy table, summarizes, and writes results to disk.
+This mini-workflow reads all `inflammation-*.csv` files, adds clear labels, reshapes to a tidy table, summarises, and writes results to disk.
 
 ```python
 from pathlib import Path
