@@ -1,3 +1,13 @@
+Here’s a minimally restructured version of your lesson that:
+
+* Removes the need to teach `melt`.
+* Simplifies plotting to just `.plot()`.
+* Refreshes the aims accordingly.
+* Adds heavy commentary in the “Combine → Summarise → Export” workflow to slow down the pacing and help learners parse each step.
+
+---
+
+````markdown
 ---
 layout: lessons
 title: Intro to Pandas
@@ -7,52 +17,51 @@ title: Intro to Pandas
 
 * Load tabular data into pandas with clear, reliable labels.
 * Select and filter data safely using `.loc` and `.iloc`.
-* Reproduce earlier NumPy statistics and Matplotlib plots using pandas’ APIs.
-* Combine many CSVs into one tidy table using `concat` and `melt`.
-* Summarise with `groupby`/`agg`, handle missing and odd values explicitly.
+* Reproduce earlier NumPy statistics and Matplotlib plots using `pandas.DataFrame.plot`.
+* Create new columns using vectorised operations and simple functions.
+* Combine many CSVs into one table with `concat`.
+* Summarise data with `groupby`/`agg`, handle missing values explicitly.
 * Export clean results and (optionally) wrap the workflow in a small CLI.
+
+---
 
 ## What is pandas?
 
-Pandas is a library that provides the `DataFrame`: a labeled, table-like data structure that makes tabular analysis expressive and robust. If NumPy gives you fast arrays, pandas layers labels, missing-data handling, and rich reshaping and grouping operations on top—ideal for day-to-day data analysis.
+Pandas provides the `DataFrame`: a labeled, table-like data structure that makes tabular analysis expressive and robust.  
+If NumPy gives you fast arrays, pandas adds labels, missing-data handling, reshaping, and grouping—ideal for day-to-day data analysis.
 
-Please have a look at the [pandas documentation](https://pandas.pydata.org/docs/getting_started/overview.html) for more details.
+See [pandas docs](https://pandas.pydata.org/docs/getting_started/overview.html) for more.
 
 * Assumes prior comfort with: Python basics, NumPy arrays, Matplotlib plotting, loops, simple functions, and reading multiple files.
 * Data: `inflammation-*.csv` (each file is patients × days) placed in your working directory.
-* Environment: Python ≥3.8; install `pandas`, `numpy`, `matplotlib`. A Jupyter notebook is recommended for the lesson, but a text editor + REPL also works.
+* Environment: Python ≥3.8; install `pandas`, `numpy`, `matplotlib`. Jupyter recommended.
 
 ---
 
 ## From Arrays to DataFrames
 
-We’ll load one inflammation CSV and give columns meaningful names.
-
 ```python
 import pandas as pd
 
 df = pd.read_csv("inflammation-01.csv", header=None)
-df.columns = [f"day_{i}" for i in range(df.shape[1])]  # name columns day_0..day_59
+df.columns = [f"day_{i}" for i in range(df.shape[1])]
 df.head()
-```
+````
 
 ```python
 df.info()
-```
-
-```python
 df.describe()
 ```
 
 ### Quick Tips
 
-* If your CSV has no header row, use `header=None` and then set `df.columns` or pass `names=`.
-* `info()` is the fastest way to catch wrong dtypes and unexpected missingness.
-* Prefer explicit, human-readable column names to avoid off-by-one mistakes later.
+* If no header row, use `header=None` then set `df.columns`.
+* `info()` quickly shows wrong dtypes or unexpected missing values.
+* Clear, human-readable names avoid off-by-one mistakes.
 
 ### Exercise 1 (Inspect)
 
-How many **patients** and **days** are in `inflammation-01.csv`? Confirm with both `df.shape` and `df.info()`.
+How many **patients** and **days** are in `inflammation-01.csv`?
 
 **Solution:**
 
@@ -65,37 +74,33 @@ print(n_patients, n_days)
 
 ## Selecting Data Safely
 
-Use **position-based** (`.iloc`) and **label-based** (`.loc`) indexing. Avoid chained indexing when setting values.
+Use `.iloc` (by position) and `.loc` (by label). Avoid chained indexing when writing.
 
 ```python
-# First patient, first 5 days (by position)
-df.iloc[0, :5]
-
-# Same using labels
+df.iloc[0, :5]  # First patient, first 5 days
 df.loc[0, ["day_0", "day_1", "day_2", "day_3", "day_4"]]
 ```
 
 ```python
-# Patient-wise mean over first week (days 0–6)
 first_week = [f"day_{i}" for i in range(7)]
-df[first_week].mean(axis=1)
+df[first_week].mean(axis=1)  # Patient-wise mean over first week
 ```
 
 ```python
-# Filter by a condition, then select a column
 mask = df["day_0"] > 0
 df.loc[mask, "day_0"].head()
 ```
 
 ### Quick Tips
 
-* **Rule of thumb:** read with either attribute or `[]`, but **write** with `.loc[row_sel, col_sel] = value` to avoid `SettingWithCopyWarning`.
-* `axis=0` means “down rows (per column)”; `axis=1` means “across columns (per row)”.
-* Don’t chain: `df[df["day_0"]>0]["day_1"]=...` — do `df.loc[df["day_0"]>0, "day_1"] = ...`.
+* **Read:** use attribute or `[]`.
+* **Write:** use `.loc[...] = value`.
+* `axis=0` → down rows; `axis=1` → across columns.
+* Avoid chaining like `df[df["day_0"]>0]["day_1"]=...`.
 
 ### Exercise 2 (Selection)
 
-Extract the readings for **patient 10** on **days 10–19** inclusive using `.iloc`. Then repeat using `.loc` with your named columns.
+Get patient 10’s readings for days 10–19 using both `.iloc` and `.loc`.
 
 **Solution:**
 
@@ -106,71 +111,37 @@ df.loc[10, [f"day_{i}" for i in range(10, 20)]]
 
 ---
 
-## Defining a DataFrame (brief)
+## Reproducing Stats & Plots with pandas
 
-A pandas `DataFrame` is defined by **data**, **row labels (index)**, and **column labels**. You can construct one from Python objects directly:
-
-```python
-basic = pd.DataFrame(
-    {"a": [1, 2], "b": [3.0, 4.5]},   # columns
-    index=["row1", "row2"]            # optional row labels
-)
-basic.dtypes      # per-column data types
-basic.index       # row labels
-basic.columns     # column labels
-```
-
-Clear labels and appropriate dtypes make later selection, grouping, and plotting safer and more readable.
-
----
-
-## Reproducing Earlier Stats & Plots with pandas
-
-We’ll replicate per-day mean/min/max and plot them using pandas’ plotting (which wraps Matplotlib). To avoid accidentally including derived columns you might add later, select only the `day_` columns.
+Compute per-day mean/min/max, then plot.
 
 ```python
-import re
-
 day_cols = df.columns[df.columns.str.startswith("day_")]
+
 per_day = pd.DataFrame({
     "mean": df[day_cols].mean(axis=0),
     "min":  df[day_cols].min(axis=0),
     "max":  df[day_cols].max(axis=0),
 })
-per_day.head()
 ```
 
 ```python
-# Make the x-axis numeric day numbers for cleaner plotting
-idx_num = per_day.index.str.extract(r"(\d+)$").astype(int)[0]
-per_day.index = idx_num
-
-ax = per_day.sort_index().plot(title="Per-day inflammation: mean, min, max")
-ax.set_xlabel("day")
-ax.set_ylabel("value")
-```
-
-```python
-# Or single series quickly (ensuring we only use day columns):
-df[day_cols].mean(axis=0).rename(index=lambda s: int(s.split("_")[-1])
-).sort_index().plot(title="Mean inflammation per day").set_xlabel("day")
+per_day.plot(title="Per-day inflammation summary")
 ```
 
 ### Quick Tips
 
-* Many `DataFrame` methods mirror NumPy: `mean`, `std`, `idxmax`, etc.
-* Pandas plotting is great for quick EDA; still use `plt.savefig("...")` for reproducibility.
-* Prefer vectorised operations to `.apply` for performance and clarity.
+* Methods mirror NumPy: `mean`, `std`, `idxmax`, etc.
+* `.plot()` is a thin wrapper around Matplotlib—fast for exploration.
 
 ### Exercise 3 (Plot Parity)
 
-Recreate the three-line “mean/min/max per day” plot you built earlier with pure Matplotlib, but using pandas. Add axis labels and a title.
+Recreate the mean/min/max per-day plot with `.plot()`, adding axis labels.
 
 **Solution:**
 
 ```python
-ax = per_day.sort_index().plot()
-ax.set_title("Per-day inflammation summary")
+ax = per_day.plot()
 ax.set_xlabel("day")
 ax.set_ylabel("value")
 ```
@@ -179,129 +150,50 @@ ax.set_ylabel("value")
 
 ## Creating New Columns
 
-A “new column” is just a labeled `Series` aligned to the existing index. The most common pattern you’ll see is direct column assignment; for conditional writes or chained transforms, prefer `.loc` or `.assign`.
-
 ```python
-# Common pattern: direct assignment
-first_week = [f"day_{i}" for i in range(7)]  # days 0–6
+first_week = [f"day_{i}" for i in range(7)]
 df["week1_total"] = df[first_week].sum(axis=1)
-
-# Center a column by subtracting its mean
 df["day_0_centered"] = df["day_0"] - df["day_0"].mean()
-
-# Conditional column (boolean mask -> int)
 df["any_week1_gt5"] = (df[first_week].max(axis=1) > 5).astype(int)
-
-df.head()
 ```
-
-```python
-# Safe in-place creation with .loc (useful when writing conditionally or to slices)
-df.loc[:, "week1_mean"] = df[first_week].mean(axis=1)
-```
-
-```python
-# Chainable creation with .assign (helps readability in pipelines)
-df = df.assign(
-    week1_total=df[first_week].sum(axis=1),
-    day_0_centered=df["day_0"] - df["day_0"].mean(),
-    any_week1_gt5=(df[first_week].max(axis=1) > 5).astype(int),
-)
-```
-
-### Quick Tips
-
-* Use direct assignment for simple, one-off columns.
-* When writing conditionally or to avoid `SettingWithCopyWarning`, use `.loc[row_sel, "col"] = value`.
-* Prefer `assign(new_col=...)` when you want readable, chainable transformations.
 
 ### Exercise 4 (Create)
 
-Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the **sample** standard deviation across days 0–6 for each patient (`ddof=1` for sample SD).
+Make `day_0_diff = day_0 - day_1` and `week1_std` as sample SD of days 0–6.
 
 **Solution:**
 
 ```python
-df = df.assign(
-    day_0_diff=df["day_0"] - df["day_1"],
-    week1_std=df[first_week].std(axis=1, ddof=1),
-)
+df["day_0_diff"] = df["day_0"] - df["day_1"]
+df["week1_std"] = df[first_week].std(axis=1, ddof=1)
 ```
 
 ---
 
-## New Column from an Existing Column (Squared)
-
-You often want a simple transformation of one column.
+## Column Transformations
 
 ```python
-# Three equivalent, vectorised ways:
 df["day_0_sq"] = df["day_0"] ** 2
-# or
-df["day_0_sq"] = df["day_0"].pow(2)
-# or
-df = df.assign(day_0_sq=df["day_0"] * df["day_0"])
-```
-
-If missing values exist, they propagate (NaNs stay NaN), which is usually the right behaviour.
-
-### Exercise 5 (Power Up)
-
-Create `day_3_sq` and `day_7_cubed`. Then compute `week1_energy` as the sum of squares across the first week (days 0–6).
-*(Note: “week 1” here means days 0–6; `day_7_cubed` is simply the 8th day and is not part of week 1.)*
-
-**Solution:**
-
-```python
-df = df.assign(
-    day_3_sq=df["day_3"].pow(2),
-    day_7_cubed=df["day_7"].pow(3),
-    week1_energy=(df[first_week] ** 2).sum(axis=1),
-)
+df["day_3_sq"] = df["day_3"].pow(2)
+df["day_7_cubed"] = df["day_7"].pow(3)
+df["week1_energy"] = (df[first_week] ** 2).sum(axis=1)
 ```
 
 ---
 
-## New Column via a User-Defined Function
+## User-Defined Functions
 
-When no vectorised operation fits, use a small, pure Python function. Prefer **Series-wise** functions (returning a Series) or **row-wise** `apply(..., axis=1)` as a last resort.
-
-### Option A: Function operating on a Series (preferred when possible)
+Vectorised where possible:
 
 ```python
 def zscore(s: pd.Series) -> pd.Series:
-    mu = s.mean()
-    sigma = s.std(ddof=1)  # sample SD for consistency
+    mu, sigma = s.mean(), s.std(ddof=1)
     return (s - mu) / sigma
 
-# Z-score of day_0 across patients
 df["day_0_z"] = zscore(df["day_0"])
 ```
 
-This stays vectorised and fast because it uses pandas ops internally.
-
-### Option B: Row-wise function with `apply(axis=1)` (use sparingly)
-
-```python
-# A tiny "flare score" using a weighted sum of the first 3 days:
-def flare_score(row: pd.Series) -> float:
-    return row["day_0"] * 0.5 + row["day_1"] * 0.3 + row["day_2"] * 0.2
-
-df["flare_score"] = df.apply(flare_score, axis=1)
-```
-
-Row-wise `apply` is clear when logic mixes multiple columns in nontrivial ways, but it’s slower on large tables.
-
-### Quick Tips
-
-* If your function is elementwise (e.g., square, clip, log), try `Series.map`, `Series.apply` (elementwise), or direct operators before `DataFrame.apply(axis=1)`.
-* Keep User Defined Functions pure (no side effects) and small; they’re easier to test and reason about.
-
-### Exercise 6 (User Defined Function)
-
-Write a function `week1_status(row)` that returns `"ok"` if the **mean** of week 1 is `< 5`, else `"review"`. Add it as a column.
-
-**Solution:**
+Row-wise only if necessary:
 
 ```python
 def week1_status(row: pd.Series) -> str:
@@ -312,61 +204,46 @@ df["week1_status"] = df.apply(week1_status, axis=1)
 
 ---
 
-## Putting It Together: Combine → Tidy → Summarise → Export
+## Putting It Together: Combine → Summarise → Export
 
-This mini-workflow reads all `inflammation-*.csv` files in the current directory, adds clear labels, reshapes to a tidy table, summarises, and writes results to disk. It’s version-robust (no reliance on newer `reset_index(names=...)`).
+This workflow loads multiple files, labels them, combines, summarises, and exports.
+Here it’s written slowly with excessive comments so each step is clear.
 
 ```python
 from pathlib import Path
 import pandas as pd
 
-# 1) Load and label many files
+# Step 1: Load one file and give it clear column names
 def load_one(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, header=None)
+    # Label columns as day_0, day_1, ...
     df.columns = [f"day_{i}" for i in range(df.shape[1])]
-    df = df.reset_index().rename(columns={"index": "patient"})  # version-agnostic
-    return df.assign(source=path.name)                           # keep file/source label
+    # Reset the row index to get an explicit patient ID
+    df = df.reset_index().rename(columns={"index": "patient"})
+    # Add a column for provenance: which file this row came from
+    return df.assign(source=path.name)
 
-files = sorted(Path().glob("inflammation-*.csv"))  # adjust if files are under 'data/'
+# Step 2: Find all files matching inflammation-*.csv
+files = sorted(Path().glob("inflammation-*.csv"))
 if not files:
     raise SystemExit("No files matched 'inflammation-*.csv'")
 
+# Step 3: Load all files into one "wide" DataFrame
+#    Each row: one patient from one file
 wide = pd.concat([load_one(p) for p in files], ignore_index=True)
 
-# 2) Reshape to tidy (long) format: one value per row
-tidy = wide.melt(
-    id_vars=["source", "patient"],
-    var_name="day",
-    value_name="inflammation",
-)
-
-# 3) Handle missing/odd values explicitly (adjust to your context)
-#    - replace sentinel -999 with NA (if present in your data)
-#    - clip values to be non-negative
-tidy = tidy.replace(-999, pd.NA)
-tidy["inflammation"] = tidy["inflammation"].clip(lower=0)  # NA values remain NA
-
-# Optional quick QA checks
-missing_rate_by_file = (
-    tidy["inflammation"].isna()
-    .groupby(tidy["source"])
-    .mean()
-    .round(3)
-)
-print("Missing rate by file:\n", missing_rate_by_file)
-
-# 4) Summarise with groupby/agg (mean, sample sd, non-missing count) per file × day
+# Step 4: Compute per-day summaries (mean, sd, n) within each file
+day_cols = [c for c in wide.columns if c.startswith("day_")]
 summary = (
-    tidy
-    .groupby(["source", "day"], as_index=False)
-    .agg(
-        mean=("inflammation", "mean"),
-        sd=("inflammation", lambda s: s.std(ddof=1)),
-        n=("inflammation", "count"),   # non-missing count
-    )
+    wide.groupby("source")[day_cols]
+        .agg(["mean", "std", "count"])  # nested columns: (day, stat)
 )
 
-# 5) Export clean results
+# Step 5: Clean up column structure: flatten multiindex
+summary.columns = [f"{day}_{stat}" for day, stat in summary.columns]
+summary = summary.reset_index()
+
+# Step 6: Write the summary to disk
 Path("out").mkdir(exist_ok=True)
 summary.to_csv("out/per_day_summary.csv", index=False)
 print("Wrote out/per_day_summary.csv")
@@ -374,20 +251,15 @@ print("Wrote out/per_day_summary.csv")
 
 ### Why this pattern?
 
-* `reset_index().rename(columns={"index": "patient"})` gives you a stable patient identifier before melting, without assuming a specific pandas version.
-* Keeping `source` (the filename) preserves provenance, so summaries can be compared across files.
-* Tidy data (`melt`) makes `groupby`/`agg` straightforward and composable.
-* Using `count` for `n` counts **valid** observations (ignores NAs), which aligns with the earlier cleaning step.
-* `clip(lower=0)` does not modify missing values; NAs remain NAs.
-
-> One-liner to run this multi-file workflow from a REPL:
->
-> ```python
-> # Assuming the script cell above is executed and files exist in CWD:
-> print(summary.head())
-> ```
+* `reset_index` ensures each patient has an explicit identifier.
+* `source` preserves provenance across files.
+* Using `groupby("source")[day_cols].agg(...)` lets you compute many stats in one call.
+* Flattening the column MultiIndex is optional but makes the CSV easier to read.
+* Exporting with `to_csv` makes results reusable in other tools.
 
 ---
+
+# Supplementary Material
 
 ## (Optional) Tiny CLI Wrapper
 
@@ -399,39 +271,67 @@ from pathlib import Path
 import argparse
 import pandas as pd
 
-def load_one(path: Path) -> pd.DataFrame:
+def load_one(path: Path):
+    """
+    Load one inflammation CSV, label columns, add patient ID and source.
+    """
     df = pd.read_csv(path, header=None)
     df.columns = [f"day_{i}" for i in range(df.shape[1])]
     df = df.reset_index().rename(columns={"index": "patient"})
     return df.assign(source=path.name)
 
 def main(pattern: str, out_csv: str):
+    """
+    Load all files matching pattern, summarise per-day stats, write to out_csv.
+    """
+    # Find files
     files = sorted(Path().glob(pattern))
+    # Exit if none found
     if not files:
+        # raise error with pattern shown
         raise SystemExit(f"No files matched {pattern!r}")
-    wide = pd.concat([load_one(p) for p in files], ignore_index=True)
-    tidy = wide.melt(id_vars=["source", "patient"], var_name="day", value_name="inflammation")
-    tidy = tidy.replace(-999, pd.NA)
-    tidy["inflammation"] = tidy["inflammation"].clip(lower=0)
+    # Load all files into one wide DataFrame
+    list_of_loaded_files = [load_one(p) for p in files]
+    # Concatenate into one big DataFrame
+    wide = pd.concat(
+        list_of_loaded_files,
+        ignore_index=True
+    )
+    # Reshape to long format for easier grouping
+    tidy = wide.melt(
+        id_vars=["source", "patient"],
+        var_name="day",
+        value_name="inflammation"
+    )
+    # Compute per-day mean, sd, n within each source file
     summary = (
         tidy.groupby(["source", "day"], as_index=False)
             .agg(mean=("inflammation","mean"),
                  sd=("inflammation", lambda s: s.std(ddof=1)),
                  n=("inflammation","count"))
     )
+    # Ensure output directory exists
     Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
+    # Write summary to CSV
     summary.to_csv(out_csv, index=False)
 
+# This evaluates to TRUE if the script is run directly (not imported)
+# It is best practice to put script-running code in this block
 if __name__ == "__main__":
+    # This is the approach to parse command-line arguments
+    # argparse is in the standard library
     ap = argparse.ArgumentParser()
+    # Positional argument: glob pattern for input files
     ap.add_argument("pattern", help="Glob like 'inflammation-*.csv' (use 'data/inflammation-*.csv' if files are in a subdir)")
+    # Optional argument: output CSV path
     ap.add_argument("--out", default="out/per_day_summary.csv")
+    # Parse args and call main
     args = ap.parse_args()
+    # Call our user defined main with parsed arguments
     main(args.pattern, args.out)
 ```
 
-Run:
-
+To Run from the command line call the script with a glob pattern and optional output path:
 ```bash
 python scripts/summarise_inflammation.py "inflammation-*.csv" --out out/per_day_summary.csv
 ```
