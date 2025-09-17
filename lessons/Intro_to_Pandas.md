@@ -170,294 +170,157 @@ ax.set_ylabel("value")
 
 ---
 
-## Many Files → One Tidy Table
+## Creating New Columns
 
-Load all `inflammation-*.csv`, keep provenance (`file`, `patient`), then **melt** to tidy format: one row = one observation.
+A “new column” is just a labeled `Series` aligned to the existing index. The most common pattern you’ll see is direct column assignment; for conditional writes or chained transforms, prefer `.loc` or `.assign`.
 
 ```python
-import glob
+# Common pattern: direct assignment
+first_week = [f"day_{i}" for i in range(7)]
+df["week1_total"] = df[first_week].sum(axis=1)
 
-paths = sorted(glob.glob("data/inflammation-*.csv"))
-frames = []
-for p in paths:
-    tmp = pd.read_csv(p, header=None)
-    tmp["file"] = p
-    tmp["patient"] = range(len(tmp))
-    frames.append(tmp)
+# Center a column by subtracting its mean
+df["day_0_centered"] = df["day_0"] - df["day_0"].mean()
 
-wide = pd.concat(frames, ignore_index=True)
-wide.columns = [*(f"day_{i}" for i in range(df.shape[1])), "file", "patient"]
+# Conditional column (boolean mask -> int)
+df["any_week1_gt5"] = (df[first_week].max(axis=1) > 5).astype(int)
+
+df.head()
 ```
 
 ```python
-long = wide.melt(
-    id_vars=["file", "patient"],
-    var_name="day",
-    value_name="inflammation",
-)
-
-# Make day numeric
-long["day"] = long["day"].str.replace("day_", "", regex=False).astype(int)
-long.head()
+# Safe in-place creation with .loc (useful when writing conditionally or to slices)
+df.loc[:, "week1_mean"] = df[first_week].mean(axis=1)
 ```
 
 ```python
-summary = (long
-    .groupby("day")["inflammation"]
-    .agg(["mean", "min", "max"])
-    .reset_index()
+# Chainable creation with .assign (helps readability in pipelines)
+df = df.assign(
+    week1_total=df[first_week].sum(axis=1),
+    day_0_centered=df["day_0"] - df["day_0"].mean(),
+    any_week1_gt5=(df[first_week].max(axis=1) > 5).astype(int),
 )
-summary.head()
 ```
 
 ### Quick Tips
 
-* Always carry identifiers (`file`, `patient`) **before** melting so you don’t lose context.
-* `concat` + `melt` is a robust pattern: many wide CSVs → one analysis table.
-* After reshaping, check types and coerce with `.astype(...)` as needed.
+* Use direct assignment for simple, one-off columns.
+* When writing conditionally or to avoid `SettingWithCopyWarning`, use `.loc[row_sel, "col"] = value`.
+* Prefer `assign(new_col=...)` when you want readable, chainable transformations.
 
-### Exercise 4 (Batch Summary)
+### Exercise 4 (Create)
 
-Compute per-**file**, per-**day** mean inflammation and plot a small-multiples figure (one panel per file).
+Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the standard deviation across days 0–6 for each patient.
 
 **Solution:**
 
 ```python
-by_file_day = (long
-    .groupby(["file", "day"])["inflammation"]
-    .mean()
-    .unstack("file")
+df = df.assign(
+    day_0_diff=df["day_0"] - df["day_1"],
+    week1_std=df[first_week].std(axis=1, ddof=0),
 )
-
-axes = by_file_day.plot(subplots=True, sharex=True, legend=False)
-for ax in axes:
-    ax.set_xlabel("day")
-    ax.set_ylabel("mean inflammation")
 ```
 
 ---
-
-## Cleaning & Validation
-
-Conditionals applied to columns.
-
-We can use conditionals to evaluate data quality.
-
-```python
-(long["inflammation"] < 0)
-```
-
-Detect missing or suspicious values, then handle them explicitly. Bridge to defensive programming with simple checks.
-
-```python
-# Missingness overview
-long.isna().sum()
-```
-
-```python
-# Domain-specific sanity checks (example thresholds) — without .query
-suspicious_mask = (long["inflammation"] < 0) | (long["inflammation"] > 100)
-suspicious = long.loc[suspicious_mask]
-suspicious.head()
-```
-
-```python
-# Replace negatives with NA, then drop rows with NA in the analysis column
-long["inflammation"] = long["inflammation"].where(long["inflammation"].ge(0), pd.NA)
-clean = long.dropna(subset=["inflammation"])
-```
-
-```python
-# Simple integrity checks (no asserts)
-clean["inflammation"].lt(0).any()     # expect False
-clean["day"].between(0, 59).all()     # expect True
-```
 
 ### Quick Tips
 
-* Prefer `where`/`mask` for conditional replacement—they preserve index alignment.
-* Use `pd.NA` and `.isna()` consistently; mixing `None`/`NaN` can surprise you.
-* Avoid `inplace=True` for clarity; assignment is easier to reason about.
+* Use `assign(new_col=...)` to keep transformations readable and chainable.
+* When writing conditionally, use `.loc[row_sel, "col"] = value`.
+* Avoid chained indexing when setting values.
 
-### Exercise 5 (Data Hygiene)
+### Exercise 4 (Create)
 
-Inject a few negative values into `long` and write code to (a) **flag**, (b) **replace with NA**, (c) **drop**, and (d) **report** how many were affected.
+Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the standard deviation across days 0–6 for each patient.
 
 **Solution:**
 
 ```python
-# Example injection (for practice only)
-long.loc[long.sample(5, random_state=0).index, "inflammation"] = -1
-
-neg = long["inflammation"] < 0
-count_neg = neg.sum()
-long.loc[neg, "inflammation"] = pd.NA
-clean = long.dropna(subset=["inflammation"])
-print("Replaced negatives:", count_neg)
+df = df.assign(
+    day_0_diff=df["day_0"] - df["day_1"],
+    week1_std=df[first_week].std(axis=1, ddof=0),
+)
 ```
 
 ---
 
-## Reshaping & Richer Summaries
+## New Column from an Existing Column (Squared)
 
-Pivot to a matrix-like view; compute grouped statistics with counts for honest intervals.
-
-```python
-heat = clean.pivot_table(
-    index="patient",
-    columns="day",
-    values="inflammation",
-    aggfunc="mean",
-)
-heat.shape
-```
+You often want a simple transformation of one column.
 
 ```python
-by_file_day = (clean
-    .groupby(["file", "day"])["inflammation"]
-    .agg(mean="mean", std="std", n="count")
-    .reset_index()
-)
-by_file_day.head()
+# Three equivalent, vectorised ways:
+df["day_0_sq"] = df["day_0"] ** 2
+# or
+df["day_0_sq"] = df["day_0"].pow(2)
+# or
+df = df.assign(day_0_sq=df["day_0"] * df["day_0"])
 ```
+
+If missing values exist, they propagate (NaNs stay NaN), which is usually the right behaviour.
+
+### Exercise 5 (Power Up)
+
+Create `day_3_sq` and `day_7_cubed`. Then compute `week1_energy` as the sum of squares across the first week.
+
+**Solution:**
+
+```python
+df = df.assign(
+    day_3_sq=df["day_3"].pow(2),
+    day_7_cubed=df["day_7"].pow(3),
+    week1_energy=(df[first_week] ** 2).sum(axis=1),
+)
+```
+
+---
+
+## New Column via a User-Defined Function
+
+When no vectorised operation fits, use a small, pure Python function. Prefer **Series-wise** functions (returning a Series) or **row-wise** `apply(..., axis=1)` as a last resort.
+
+### Option A: Function operating on a Series (preferred when possible)
+
+```python
+def zscore(s: pd.Series) -> pd.Series:
+    mu = s.mean()
+    sigma = s.std(ddof=0)
+    return (s - mu) / sigma
+
+# Z-score of day_0 across patients
+df["day_0_z"] = zscore(df["day_0"])
+```
+
+This stays vectorised and fast because it uses pandas ops internally.
+
+### Option B: Row-wise function with `apply(axis=1)` (use sparingly)
+
+```python
+# A tiny "flare score" using a weighted sum of the first 3 days:
+weights = {"day_0": 0.5, "day_1": 0.3, "day_2": 0.2}
+
+def flare_score(row: pd.Series) -> float:
+    return sum(row[k] * w for k, w in weights.items())
+
+df["flare_score"] = df.apply(flare_score, axis=1)
+```
+
+Row-wise `apply` is clear when logic mixes multiple columns in nontrivial ways, but it’s slower on large tables.
 
 ### Quick Tips
 
-* `pivot` reshapes; `pivot_table` can **aggregate** duplicates via `aggfunc=`.
-* Named aggregations in `.agg(mean="mean", std="std", ...)` are explicit and readable.
-* Always keep `n` alongside summary stats (`mean`, `std`) to interpret variability.
+* If your function is elementwise (e.g., square, clip, log), try `Series.map`, `Series.apply` (elementwise), or direct operators before `DataFrame.apply(axis=1)`.
+* Keep UDFs pure (no side effects) and small; they’re easier to test and reason about.
 
-### Exercise 6 (Suspicious Patterns)
+### Exercise 6 (UDF)
 
-Find **runs** of strictly increasing per-file means of length ≥10 (too-perfect trends). Return `file`, `start_day`, `length`.
-
-**Solution:**
-
-```python
-def find_runs(s):
-    inc = s.diff().gt(0)
-    grp = inc.ne(inc.shift()).cumsum()
-    runs = (inc.groupby(grp).sum()
-            .reset_index(drop=True))
-    # runs counts only True segments; need start indices as well
-    starts = (inc.groupby(grp).apply(lambda g: g.index[0])).reset_index(drop=True)
-    out = []
-    for start, length in zip(starts, runs):
-        if length >= 10:
-            out.append((start - length + 1, length))
-    return out
-
-results = []
-for f, sub in by_file_day.groupby("file"):
-    for start, length in find_runs(sub["mean"].reset_index(drop=True)):
-        results.append({"file": f, "start_day": int(start), "length": int(length)})
-
-pd.DataFrame(results)
-```
-
----
-
-## Export & Optional CLI Wrap
-
-Write results to disk and optionally wrap into a small command-line tool with `argparse`.
-
-```python
-summary.to_csv("results/per_day_summary.csv", index=False)
-```
-
-```python
-import glob
-
-def load_summary(paths, stat="mean"):
-    frames = []
-    for p in paths:
-        tmp = pd.read_csv(p, header=None)
-        tmp["file"] = p
-        tmp["patient"] = range(len(tmp))
-        frames.append(tmp)
-    wide = pd.concat(frames, ignore_index=True)
-    n_days = len(wide.columns) - 2
-    wide.columns = [*(f"day_{i}" for i in range(n_days)), "file", "patient"]
-    long = wide.melt(id_vars=["file","patient"], var_name="day", value_name="inflammation")
-    long["day"] = long["day"].str.replace("day_", "", regex=False).astype(int)
-    agg_map = {"mean":"mean","min":"min","max":"max"}[stat]
-    return (long.groupby("day")["inflammation"].agg(agg_map).reset_index(name=stat))
-
-
-
-paths = sorted(glob.glob("inflammation-*.csv"))
-summary = load_summary(paths, stat="mean")
-```
-
-### Quick Tips
-
-* Keep functions **pure** (inputs → outputs) to make them testable.
-* Fail early if `glob` matches nothing; avoid silently writing empty outputs.
-* For larger CLIs use `argparse` (or libraries like `click`/`typer` later).
-
-### Exercise 7 (CLI Test)
-
-Run the CLI on `inflammation-*.csv` and confirm the row count equals `n_days`. Then add a flag `--stat mean|min|max` (already shown) and test each option.
-
-**Solution:**
-
-```bash
-python analyse.py "data/inflammation-*.csv" -o results/mean.csv --stat mean
-python analyse.py "data/inflammation-*.csv" -o results/min.csv  --stat min
-python analyse.py "data/inflammation-*.csv" -o results/max.csv  --stat max
-```
-
----
-
-## Practical Exercises
-
-#### Exercise 8: Median vs Mean
-
-Load `inflammation-03.csv` and compute the **median per day**. Does it differ materially from the mean? Briefly justify.
+Write a function `week1_status(row)` that returns `"ok"` if the **mean** of week 1 is `< 5`, else `"review"`. Add it as a column.
 
 **Solution:**
 
 ```python
-df3 = pd.read_csv("data/inflammation-03.csv", header=None)
-df3.columns = [f"day_{i}" for i in range(df3.shape[1])]
-median_vs_mean = pd.DataFrame({
-    "mean":   df3.mean(axis=0),
-    "median": df3.median(axis=0),
-})
-median_vs_mean.head()
+def week1_status(row: pd.Series) -> str:
+    return "ok" if row[first_week].mean() < 5 else "review"
+
+df["week1_status"] = df.apply(week1_status, axis=1)
 ```
-
-
-#### Exercise 9: Outlier Files
-
-Identify any file with ≥1 day where `file_mean(day) > global_mean(day) + 3*global_std(day)`. List file and day.
-
-**Solution:**
-
-```python
-global_stats = (long.groupby("day")["inflammation"]
-                    .agg(gmean="mean", gstd="std")
-                    .reset_index())
-
-file_day = (long.groupby(["file","day"])["inflammation"]
-                 .mean()
-                 .reset_index(name="fmean"))
-
-merged = file_day.merge(global_stats, on="day", how="left")
-mask = merged["fmean"] > (merged["gmean"] + 3 * merged["gstd"])
-outliers = merged.loc[mask, ["file","day","fmean"]]
-outliers.sort_values(["file","day"])
-```
-
----
-
-## Key Points
-
-* A `DataFrame` is a labeled 2D array—keep identifiers like `file` and `patient` from the start.
-* Use `.loc`/`.iloc` for clarity; **never rely on chained indexing** when assigning.
-* Pandas mirrors many NumPy reductions (`mean`, `std`, …) and offers convenient plotting.
-* To combine many files: `concat`, then `melt` to get **tidy** data; analyse with `groupby`/`agg`.
-* Validate assumptions early with `info()`, `describe()`, and simple checks; handle missing data intentionally.
-* Export results with `to_csv`; optional: wrap workflows in small, testable CLIs with `argparse`.
-
-#### Lesson Inspired by Software Carpentries’ *python-novice-inflammation* and adapted for a pandas-focused bridge.
