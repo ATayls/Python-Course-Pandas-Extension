@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", function() {
   const baseurl = document.querySelector('meta[name="baseurl"]').getAttribute('content');
   const currentPage = window.location.pathname.replace(baseurl, '');
   const lessonPages = [
-      `${baseurl}/lessons/Intro_to_Pandas/`
+      `${baseurl}/lessons/Intro_to_Pandas/`,
+      `${baseurl}/lessons/Intro_to_Statsmodels/`
   ];
   if (!lessonPages.includes(currentPage)) return;
 
