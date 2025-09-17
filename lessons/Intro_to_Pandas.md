@@ -1,8 +1,7 @@
 ---
-
 layout: lessons
 lessons title: Intro to pandas
-------------------------------
+---
 
 ## Lesson Aims
 
@@ -20,7 +19,7 @@ Pandas is a library that provides the `DataFrame`: a labeled, table-like data st
 Please have a look at the [pandas documentation](https://pandas.pydata.org/docs/getting_started/overview.html) for more details.
 
 * Assumes prior comfort with: Python basics, NumPy arrays, Matplotlib plotting, loops, simple functions, and reading multiple files.
-* Data: `inflammation-*.csv` (each file is patients × days).
+* Data: `inflammation-*.csv` (each file is patients × days) placed in your working directory.
 * Environment: Python ≥3.8; install `pandas`, `numpy`, `matplotlib`. A Jupyter notebook is recommended for the lesson, but a text editor + REPL also works.
 
 ---
@@ -77,7 +76,7 @@ df.loc[0, ["day_0", "day_1", "day_2", "day_3", "day_4"]]
 ```
 
 ```python
-# Patient-wise mean over first week
+# Patient-wise mean over first week (days 0–6)
 first_week = [f"day_{i}" for i in range(7)]
 df[first_week].mean(axis=1)
 ```
@@ -127,26 +126,34 @@ Clear labels and appropriate dtypes make later selection, grouping, and plotting
 
 ## Reproducing Earlier Stats & Plots with pandas
 
-We’ll replicate per-day mean/min/max and plot them using pandas’ plotting (which wraps Matplotlib).
+We’ll replicate per-day mean/min/max and plot them using pandas’ plotting (which wraps Matplotlib). To avoid accidentally including derived columns you might add later, select only the `day_` columns.
 
 ```python
+import re
+
+day_cols = df.columns[df.columns.str.startswith("day_")]
 per_day = pd.DataFrame({
-    "mean": df.mean(axis=0),
-    "min":  df.min(axis=0),
-    "max":  df.max(axis=0),
+    "mean": df[day_cols].mean(axis=0),
+    "min":  df[day_cols].min(axis=0),
+    "max":  df[day_cols].max(axis=0),
 })
 per_day.head()
 ```
 
 ```python
-ax = per_day.plot(title="Per-day inflammation: mean, min, max")
+# Make the x-axis numeric day numbers for cleaner plotting
+idx_num = per_day.index.str.extract(r"(\d+)$").astype(int)[0]
+per_day.index = idx_num
+
+ax = per_day.sort_index().plot(title="Per-day inflammation: mean, min, max")
 ax.set_xlabel("day")
 ax.set_ylabel("value")
 ```
 
 ```python
-# Or single series quickly:
-df.mean(axis=0).plot(title="Mean inflammation per day").set_xlabel("day")
+# Or single series quickly (ensuring we only use day columns):
+df[day_cols].mean(axis=0).rename(index=lambda s: int(s.split("_")[-1])
+).sort_index().plot(title="Mean inflammation per day").set_xlabel("day")
 ```
 
 ### Quick Tips
@@ -162,7 +169,7 @@ Recreate the three-line “mean/min/max per day” plot you built earlier with p
 **Solution:**
 
 ```python
-ax = per_day.plot()
+ax = per_day.sort_index().plot()
 ax.set_title("Per-day inflammation summary")
 ax.set_xlabel("day")
 ax.set_ylabel("value")
@@ -176,7 +183,7 @@ A “new column” is just a labeled `Series` aligned to the existing index. The
 
 ```python
 # Common pattern: direct assignment
-first_week = [f"day_{i}" for i in range(7)]
+first_week = [f"day_{i}" for i in range(7)]  # days 0–6
 df["week1_total"] = df[first_week].sum(axis=1)
 
 # Center a column by subtracting its mean
@@ -210,35 +217,14 @@ df = df.assign(
 
 ### Exercise 4 (Create)
 
-Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the standard deviation across days 0–6 for each patient.
+Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the **sample** standard deviation across days 0–6 for each patient (`ddof=1` for sample SD).
 
 **Solution:**
 
 ```python
 df = df.assign(
     day_0_diff=df["day_0"] - df["day_1"],
-    week1_std=df[first_week].std(axis=1, ddof=0),
-)
-```
-
----
-
-### Quick Tips
-
-* Use `assign(new_col=...)` to keep transformations readable and chainable.
-* When writing conditionally, use `.loc[row_sel, "col"] = value`.
-* Avoid chained indexing when setting values.
-
-### Exercise 4 (Create)
-
-Make a column called `day_0_diff` that is `day_0 - day_1`. Then create `week1_std` as the standard deviation across days 0–6 for each patient.
-
-**Solution:**
-
-```python
-df = df.assign(
-    day_0_diff=df["day_0"] - df["day_1"],
-    week1_std=df[first_week].std(axis=1, ddof=0),
+    week1_std=df[first_week].std(axis=1, ddof=1),
 )
 ```
 
@@ -261,7 +247,8 @@ If missing values exist, they propagate (NaNs stay NaN), which is usually the ri
 
 ### Exercise 5 (Power Up)
 
-Create `day_3_sq` and `day_7_cubed`. Then compute `week1_energy` as the sum of squares across the first week.
+Create `day_3_sq` and `day_7_cubed`. Then compute `week1_energy` as the sum of squares across the first week (days 0–6).
+*(Note: “week 1” here means days 0–6; `day_7_cubed` is simply the 8th day and is not part of week 1.)*
 
 **Solution:**
 
@@ -284,7 +271,7 @@ When no vectorised operation fits, use a small, pure Python function. Prefer **S
 ```python
 def zscore(s: pd.Series) -> pd.Series:
     mu = s.mean()
-    sigma = s.std(ddof=0)
+    sigma = s.std(ddof=1)  # sample SD for consistency
     return (s - mu) / sigma
 
 # Z-score of day_0 across patients
@@ -297,10 +284,8 @@ This stays vectorised and fast because it uses pandas ops internally.
 
 ```python
 # A tiny "flare score" using a weighted sum of the first 3 days:
-weights = {"day_0": 0.5, "day_1": 0.3, "day_2": 0.2}
-
 def flare_score(row: pd.Series) -> float:
-    return sum(row[k] * w for k, w in weights.items())
+    return row["day_0"] * 0.5 + row["day_1"] * 0.3 + row["day_2"] * 0.2
 
 df["flare_score"] = df.apply(flare_score, axis=1)
 ```
@@ -310,7 +295,7 @@ Row-wise `apply` is clear when logic mixes multiple columns in nontrivial ways, 
 ### Quick Tips
 
 * If your function is elementwise (e.g., square, clip, log), try `Series.map`, `Series.apply` (elementwise), or direct operators before `DataFrame.apply(axis=1)`.
-* Keep User Define Functions pure (no side effects) and small; they’re easier to test and reason about.
+* Keep User Defined Functions pure (no side effects) and small; they’re easier to test and reason about.
 
 ### Exercise 6 (User Defined Function)
 
@@ -329,7 +314,7 @@ df["week1_status"] = df.apply(week1_status, axis=1)
 
 ## Putting It Together: Combine → Tidy → Summarise → Export
 
-This mini-workflow reads all `inflammation-*.csv` files, adds clear labels, reshapes to a tidy table, summarises, and writes results to disk.
+This mini-workflow reads all `inflammation-*.csv` files in the current directory, adds clear labels, reshapes to a tidy table, summarises, and writes results to disk. It’s version-robust (no reliance on newer `reset_index(names=...)`).
 
 ```python
 from pathlib import Path
@@ -339,10 +324,13 @@ import pandas as pd
 def load_one(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, header=None)
     df.columns = [f"day_{i}" for i in range(df.shape[1])]
-    df = df.reset_index(names="patient")          # patient id 0..N-1
-    return df.assign(source=path.name)            # keep file/source label
+    df = df.reset_index().rename(columns={"index": "patient"})  # version-agnostic
+    return df.assign(source=path.name)                           # keep file/source label
 
-files = sorted(Path("data").glob("inflammation-*.csv"))
+files = sorted(Path().glob("inflammation-*.csv"))  # adjust if files are under 'data/'
+if not files:
+    raise SystemExit("No files matched 'inflammation-*.csv'")
+
 wide = pd.concat([load_one(p) for p in files], ignore_index=True)
 
 # 2) Reshape to tidy (long) format: one value per row
@@ -353,11 +341,10 @@ tidy = wide.melt(
 )
 
 # 3) Handle missing/odd values explicitly (adjust to your context)
-# Example policies:
-#   - no negatives allowed
-#   - replace sentinel -999 with NA (if present in your data)
+#    - replace sentinel -999 with NA (if present in your data)
+#    - clip values to be non-negative
 tidy = tidy.replace(-999, pd.NA)
-tidy["inflammation"] = tidy["inflammation"].clip(lower=0)
+tidy["inflammation"] = tidy["inflammation"].clip(lower=0)  # NA values remain NA
 
 # Optional quick QA checks
 missing_rate_by_file = (
@@ -368,14 +355,14 @@ missing_rate_by_file = (
 )
 print("Missing rate by file:\n", missing_rate_by_file)
 
-# 4) Summarise with groupby/agg (mean, sd, count) per file × day
+# 4) Summarise with groupby/agg (mean, sample sd, non-missing count) per file × day
 summary = (
     tidy
     .groupby(["source", "day"], as_index=False)
     .agg(
         mean=("inflammation", "mean"),
-        sd=("inflammation", "std"),
-        n=("inflammation", "size"),
+        sd=("inflammation", lambda s: s.std(ddof=1)),
+        n=("inflammation", "count"),   # non-missing count
     )
 )
 
@@ -387,9 +374,18 @@ print("Wrote out/per_day_summary.csv")
 
 ### Why this pattern?
 
-* `reset_index(names="patient")` gives you a stable patient identifier before melting.
+* `reset_index().rename(columns={"index": "patient"})` gives you a stable patient identifier before melting, without assuming a specific pandas version.
 * Keeping `source` (the filename) preserves provenance, so summaries can be compared across files.
 * Tidy data (`melt`) makes `groupby`/`agg` straightforward and composable.
+* Using `count` for `n` counts **valid** observations (ignores NAs), which aligns with the earlier cleaning step.
+* `clip(lower=0)` does not modify missing values; NAs remain NAs.
+
+> One-liner to run this multi-file workflow from a REPL:
+>
+> ```python
+> # Assuming the script cell above is executed and files exist in CWD:
+> print(summary.head())
+> ```
 
 ---
 
@@ -406,7 +402,7 @@ import pandas as pd
 def load_one(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, header=None)
     df.columns = [f"day_{i}" for i in range(df.shape[1])]
-    df = df.reset_index(names="patient")
+    df = df.reset_index().rename(columns={"index": "patient"})
     return df.assign(source=path.name)
 
 def main(pattern: str, out_csv: str):
@@ -417,16 +413,18 @@ def main(pattern: str, out_csv: str):
     tidy = wide.melt(id_vars=["source", "patient"], var_name="day", value_name="inflammation")
     tidy = tidy.replace(-999, pd.NA)
     tidy["inflammation"] = tidy["inflammation"].clip(lower=0)
-    summary = (tidy.groupby(["source", "day"], as_index=False)
-                    .agg(mean=("inflammation","mean"),
-                         sd=("inflammation","std"),
-                         n=("inflammation","size")))
+    summary = (
+        tidy.groupby(["source", "day"], as_index=False)
+            .agg(mean=("inflammation","mean"),
+                 sd=("inflammation", lambda s: s.std(ddof=1)),
+                 n=("inflammation","count"))
+    )
     Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(out_csv, index=False)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("pattern", help="Glob like 'inflammation-*.csv'")
+    ap.add_argument("pattern", help="Glob like 'inflammation-*.csv' (use 'data/inflammation-*.csv' if files are in a subdir)")
     ap.add_argument("--out", default="out/per_day_summary.csv")
     args = ap.parse_args()
     main(args.pattern, args.out)
