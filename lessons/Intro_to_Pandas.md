@@ -159,6 +159,21 @@ df["week1_std"] = df[first_week].std(axis=1, ddof=1)
 ```
 
 ---
+### Creating New Columns (assign)
+
+We can also use `assign` to create new columns. This is useful for chaining operations.
+
+This is slightly more verbose, but has the advantage of not modifying `df` until the end.
+It is preferred for more declarative code.
+
+```python
+df = df.assign(
+    day_0_diff = df["day_0"] - df["day_1"],
+    week1_std = df[first_week].std(axis=1, ddof=1)
+)
+```
+
+---
 
 ## Column Transformations
 
