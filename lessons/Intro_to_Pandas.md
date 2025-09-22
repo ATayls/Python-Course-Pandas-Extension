@@ -17,12 +17,14 @@ title: Intro to Pandas
 
 ## What is pandas?
 
-Pandas provides the `DataFrame`: a labeled, table-like data structure that makes tabular analysis expressive and robust.  
-If NumPy gives you fast arrays, pandas adds labels, missing-data handling, reshaping, and grouping—ideal for day-to-day data analysis.
+* Pandas provides the `DataFrame`
+* A DataFrame is a labeled, table-like data structure that simplifies data manipulation and analysis.
+* NumPy gives you fast arrays,
+* Pandas adds labels, missing-data handling, reshaping, and grouping—ideal for day-to-day data analysis.
 
 See [pandas docs](https://pandas.pydata.org/docs/getting_started/overview.html) for more.
 
-* Assumes prior comfort with: Python basics, NumPy arrays, Matplotlib plotting, loops, simple functions, and reading multiple files.
+* Assumes prior comfort with: Python basics, NumPy arrays, Matplotlib plotting, simple functions, and reading multiple files.
 * Data: `inflammation-*.csv` (each file is patients × days) placed in your working directory.
 * Environment: Python ≥3.8; install `pandas`, `numpy`, `matplotlib`. Jupyter recommended.
 
@@ -268,7 +270,7 @@ print("Wrote out/per_day_summary.csv")
 
 ## (Optional) Tiny CLI Wrapper
 
-If you’d like to run the workflow from the shell without touching a notebook, save the below as `scripts/summarise_inflammation.py`:
+To run the workflow from the shell without touching a notebook, save the below as `scripts/summarise_inflammation.py`:
 
 ```python
 #!/usr/bin/env python3
