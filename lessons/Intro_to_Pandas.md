@@ -1,13 +1,3 @@
-Here’s a minimally restructured version of your lesson that:
-
-* Removes the need to teach `melt`.
-* Simplifies plotting to just `.plot()`.
-* Refreshes the aims accordingly.
-* Adds heavy commentary in the “Combine → Summarise → Export” workflow to slow down the pacing and help learners parse each step.
-
----
-
-````markdown
 ---
 layout: lessons
 title: Intro to Pandas
